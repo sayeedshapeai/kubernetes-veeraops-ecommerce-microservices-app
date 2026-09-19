@@ -3,18 +3,11 @@ name: infra Terraform
 on:
   workflow_dispatch:
 
-permissions:
-  contents: read
-
-concurrency:
-  group: terraform-apply
-  cancel-in-progress: false
-
 env:
   AWS_REGION: us-east-1
   TF_VERSION: "1.12.2"
   TF_WORKING_DIR: EKS-Terraform
-  BUCKET_NAME: sayeedshapeai
+  BUCKET_NAME : sayeedshapeai
 
 jobs:
 
@@ -30,6 +23,9 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      # ----------------------------------------------------------
+      # AWS AUTHENTICATION
+      # ----------------------------------------------------------
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -38,19 +34,22 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Verify AWS Identity
-        run: aws sts get-caller-identity
+        run: |
+          aws sts get-caller-identity
 
+      # ----------------------------------------------------------
+      # TERRAFORM
+      # ----------------------------------------------------------
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
-
       - name: Create S3 Bucket if not exists
         run: |
-          BUCKET_NAME="${{ env.BUCKET_NAME }}"
-          AWS_REGION="${{ env.AWS_REGION }}"
+         BUCKET_NAME="${{ env.BUCKET_NAME }}"
+            AWS_REGION="${{ env.AWS_REGION }}"
 
-          if aws s3api head-bucket --bucket "$BUCKET_NAME" 2>/dev/null; then
+             if aws s3api head-bucket --bucket "$BUCKET_NAME" 2>/dev/null; then
             echo "Bucket already exists. Skipping creation."
           else
             echo "Bucket does not exist. Creating..."
@@ -58,7 +57,7 @@ jobs:
             aws s3api create-bucket \
               --bucket "$BUCKET_NAME" \
               --region "$AWS_REGION" \
-              --create-bucket-configuration LocationConstraint="$AWS_REGION"
+  
 
             echo "Bucket created successfully."
           fi
@@ -69,18 +68,24 @@ jobs:
             --bucket "${{ env.BUCKET_NAME }}"
 
           echo "S3 bucket is available."
+      
+      - name: Terraform Version
+        run: terraform version
 
       - name: Terraform Init
         working-directory: ${{ env.TF_WORKING_DIR }}
-        run: terraform init
+        run: |
+          terraform init
 
       - name: Terraform Validate
         working-directory: ${{ env.TF_WORKING_DIR }}
-        run: terraform validate
+        run: |
+          terraform validate
 
       - name: Terraform Plan
         working-directory: ${{ env.TF_WORKING_DIR }}
-        run: terraform plan -out=tfplan
+        run: |
+          terraform plan -out=tfplan
 
       - name: Upload Terraform Plan
         uses: actions/upload-artifact@v4
@@ -96,6 +101,7 @@ jobs:
   terraform-apply:
     name: Terraform Apply
     needs: terraform-plan
+
     runs-on: ubuntu-latest
 
     environment:
@@ -106,6 +112,9 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      # ----------------------------------------------------------
+      # AWS AUTHENTICATION
+      # ----------------------------------------------------------
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -114,16 +123,24 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Verify AWS Identity
-        run: aws sts get-caller-identity
+        run: |
+          aws sts get-caller-identity
 
+      # ----------------------------------------------------------
+      # TERRAFORM
+      # ----------------------------------------------------------
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
+      - name: Terraform Version
+        run: terraform version
+
       - name: Terraform Init
         working-directory: ${{ env.TF_WORKING_DIR }}
-        run: terraform init
+        run: |
+          terraform init
 
       - name: Download Terraform Plan
         uses: actions/download-artifact@v4
@@ -133,8 +150,13 @@ jobs:
 
       - name: Terraform Apply
         working-directory: ${{ env.TF_WORKING_DIR }}
-        run: terraform apply -auto-approve tfplan
+        run: |
+          terraform apply -auto-approve tfplan
 
+      # ----------------------------------------------------------
+      # TERRAFORM OUTPUTS
+      # ----------------------------------------------------------
       - name: Terraform Outputs
         working-directory: ${{ env.TF_WORKING_DIR }}
-        run: terraform output
+        run: |
+          terraform output
