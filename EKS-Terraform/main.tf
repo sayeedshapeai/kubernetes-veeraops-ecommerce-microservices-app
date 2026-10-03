@@ -272,7 +272,7 @@ resource "aws_eks_node_group" "node_group" {
   ]
   
     
-  instance_types = ["c7i-flex.large"]
+  instance_types = ["t3.medium"]
 
   scaling_config {
 
